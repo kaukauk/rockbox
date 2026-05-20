@@ -534,6 +534,17 @@ void cfg_to_string(const struct settings_list *setting, char* buf, int buf_len)
                     buf[0] = '-';
                     buf[1] = '\0';
                 }
+                else if (value[0] == '/')
+                {
+                    /* Already an absolute path (e.g. theme-provided
+                     * "/.rockbox/fonts/X.fnt" on a hosted target where
+                     * ROCKBOX_DIR is "/sdcard/.rockbox").  Writing
+                     * fs->prefix in front of it would produce a doubled
+                     * path like "/sdcard/.rockbox/fonts//.rockbox/...";
+                     * the value already carries its extension so suffix
+                     * doesn't apply either. */
+                    strmemccpy(buf, value, buf_len);
+                }
                 else
                 {
                     snprintf(buf, buf_len, "%s%s%s",
