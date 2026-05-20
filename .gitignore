@@ -55,6 +55,10 @@ __pycache__
 # android: eclipse stuff
 /android/.settings
 
+# android: out-of-tree build directory created by `mkdir build && cd build`
+# per android/building.md (configure + make are run from inside this dir)
+/android/build/
+
 # buflib test code
 /firmware/test/buflib/test_main
 /firmware/test/buflib/test_main2
