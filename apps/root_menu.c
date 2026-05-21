@@ -43,9 +43,6 @@
 #include "yesno.h"
 #include "splash.h"
 #include "button.h"
-#ifdef HAVE_TAGCACHE
-#include "menus/music_browser.h"
-#endif
 
 #ifdef HAVE_HOTSWAP
 #include "storage.h"
@@ -133,6 +130,7 @@ static int browser(void* param)
     static int last_db_dirlevel = 0, last_db_selection = 0, last_ft_dirlevel = 0;
 #endif
 
+    int initial_descend = 0;
     switch ((intptr_t)param)
     {
         case GO_TO_FILEBROWSER:
@@ -293,6 +291,16 @@ static int browser(void* param)
             tc->selected_item = last_db_selection;
             push_current_activity(ACTIVITY_DATABASEBROWSER);
         break;
+        case GO_TO_MUSIC:
+            if (!tagcache_is_usable())
+                return GO_TO_PREVIOUS;
+            filter = SHOW_ID3DB;
+            last_ft_dirlevel = tc->dirlevel;
+            tc->dirlevel = 0;
+            tc->selected_item = 0;
+            initial_descend = 1; /* tagnavi "main": index 1 = Artist */
+            push_current_activity(ACTIVITY_DATABASEBROWSER);
+        break;
 #endif /*HAVE_TAGCACHE*/
     }
 
@@ -300,6 +308,9 @@ static int browser(void* param)
         .dirfilter = filter,
         .icon = Icon_NOICON,
         .root = folder,
+#ifdef HAVE_TAGCACHE
+        .initial_descend = initial_descend,
+#endif
     };
 
     ret_val = rockbox_browse(&browse);
@@ -518,7 +529,9 @@ static const struct root_items items[] = {
     [GO_TO_OTHER_ITEMS] = { show_other_items, NULL, NULL },
     [GO_TO_AUDIOBOOKS_BROWSE] = { browse_audiobooks, NULL, NULL },
 #ifdef HAVE_TAGCACHE
-    [GO_TO_MUSIC] = { music_browse, NULL, NULL },
+#ifdef HAVE_TAGCACHE
+    [GO_TO_MUSIC] = { browser, (void*)GO_TO_MUSIC, &tagcache_menu },
+#endif
 #endif
 
 };
@@ -859,10 +872,8 @@ MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
                      item_callback, Icon_Playlist);
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      item_callback, Icon_System_menu);
-/* "Music" — opens a stripped-down tagcache browser (artist → album →
- * track) defined in apps/menus/music_browser.c.  Bypasses the stock
- * tagtree menu so the noisy "<All tracks>"/"<Random>"/etc. entries
- * don't show up. */
+/* "Music" — alias for Database that auto-descends into the Artist
+ * menu, so the user skips the tagtree root listing. */
 MENUITEM_RETURNVALUE(music_item, ID2P(LANG_MUSIC), GO_TO_MUSIC,
                      item_callback, Icon_Audio);
 /* "Audiobooks" — opens the file browser rooted at the configured
