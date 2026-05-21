@@ -197,6 +197,14 @@ static bool settings_crc_changed(void)
 }
 
 /** Reading from a config file **/
+
+/* Set true whenever copy_filename_setting strips a legacy "/.rockbox/<sub>/"
+ * prefix from an input that didn't match fs->prefix.  settings_load() polls
+ * this after the boot-time load and re-saves config.cfg once if true, so a
+ * stale config polluted by the doubled-prefix bug self-heals on next boot. */
+static bool g_settings_legacy_prefix_seen = false;
+static bool settings_write_config(const char* filename, int options);
+
 /*
  * load settings from disk
  */
@@ -217,6 +225,22 @@ void settings_load(void)
 
     /* set initial CRC value - settings_save checks, if changed writes to disk */
     settings_crc_changed();
+
+    /* One-shot migration: if the load saw any legacy "/.rockbox/<sub>/"
+     * prefix in a filename setting, it means the cfg on disk carries the
+     * doubled-prefix corruption from the pre-patch days.  copy_filename
+     * stripped it on the way in; rewrite the file synchronously here so
+     * users don't have to twiddle settings to force a flush. */
+    if (g_settings_legacy_prefix_seen)
+    {
+        g_settings_legacy_prefix_seen = false;
+        if (settings_write_config(CONFIGFILE_TEMP, SETTINGS_SAVE_ALL))
+            rename_temp_file(CONFIGFILE_TEMP, CONFIGFILE,
+                             CONFIGFILE".old");
+        /* Resync CRC so the next idle-callback flush doesn't redundantly
+         * rewrite what we just wrote. */
+        settings_crc_changed();
+    }
 }
 
 bool cfg_string_to_int(const struct settings_list *setting, int* out, const char* str)
@@ -267,6 +291,7 @@ bool copy_filename_setting(char *buf, size_t buflen, const char *input,
 {
     size_t input_len = strlen(input);
     size_t len;
+    bool prefix_matched = false;
 
     if (fs->prefix)
     {
@@ -275,10 +300,41 @@ bool copy_filename_setting(char *buf, size_t buflen, const char *input,
         {
             input += len;
             input_len -= len;
+            prefix_matched = true;
+        }
+
+        /* Belt-and-braces: hosted-Android targets define ROCKBOX_DIR as
+         * "/sdcard/.rockbox" so fs->prefix becomes e.g.
+         * "/sdcard/.rockbox/fonts/", while themes (and historical config
+         * lines from the doubled-prefix bug) carry the legacy
+         * "/.rockbox/fonts/X.fnt" form.  After the prefix strip above the
+         * remaining input may still begin with "/.rockbox/<sub>/" — find
+         * that fragment inside fs->prefix and strip it too, so the stored
+         * value canonicalizes to a bare basename like on flash targets.
+         * Without this an absolute path leaks into the stored field, save
+         * has to write it verbatim, and the cfg drifts each session. */
+        const char *legacy = strstr(fs->prefix, "/.rockbox/");
+        if (legacy)
+        {
+            size_t llen = strlen(legacy);
+            if (llen <= input_len && !strncasecmp(input, legacy, llen))
+            {
+                input += llen;
+                input_len -= llen;
+                prefix_matched = true;
+                g_settings_legacy_prefix_seen = true;
+            }
         }
     }
 
-    if (fs->suffix)
+    /* Only strip the extension when we matched a recognized prefix (or the
+     * input was already a bare basename without a leading '/').  If the
+     * user supplied an arbitrary absolute path that doesn't sit under any
+     * known dir — e.g. a custom font at "/sdcard/MyFonts/X.fnt" — keep
+     * the extension intact so cfg_to_string's verbatim writeback for
+     * '/'-leading values doesn't drop the suffix on subsequent saves. */
+    bool strip_suffix = prefix_matched || input_len == 0 || input[0] != '/';
+    if (fs->suffix && strip_suffix)
     {
         len = strlen(fs->suffix);
         if (len <= input_len &&

@@ -28,7 +28,7 @@ Your best options are to use either <u>WSL</u>, <u>Docker</u>, or a <u>Linux VM<
 5. Run the configure tool for android:
 
    ```
-   ../../tools/configure --target=201 --lcdwidth=480 --lcdheight=360 --type=n
+   ../../tools/configure --target=310 --lcdwidth=480 --lcdheight=360 --type=n
    ```
 
 6. Run `make`
@@ -82,7 +82,7 @@ Your best options are to use either <u>WSL</u>, <u>Docker</u>, or a <u>Linux VM<
 5. Run the configure tool for android:
 
    ```
-   ../../tools/configure --target=201 --lcdwidth=480 --lcdheight=360 --type=n
+   ../../tools/configure --target=310 --lcdwidth=480 --lcdheight=360 --type=n
    ```
 
 6. Install Android build tools 28.0.3 for android-17
