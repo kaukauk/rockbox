@@ -614,6 +614,17 @@ struct user_settings
     int usemrb;             /* use MRB list: 0=No, 1=Yes, 2=One per playlist,
                                              3=One per playlist and track */
 
+    /* audiobook-mode overrides — see apps/audiobook.h */
+    bool audiobook_mode;
+    unsigned char audiobook_path[MAX_PATHNAME+1];
+    unsigned char audiobook_extensions[32];
+    int  audiobook_skip_length;
+    int  audiobook_pause_rewind;
+    int  audiobook_autocreatebookmark;
+    int  audiobook_autoloadbookmark;
+    int  audiobook_usemrb;
+    bool audiobook_autoresume_enable;
+
 #ifdef HAVE_DIRCACHE
     bool dircache;          /* enable directory cache */
 #endif

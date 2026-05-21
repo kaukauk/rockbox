@@ -28,6 +28,7 @@
 #include "audio.h"
 #include "playlist.h"
 #include "settings.h"
+#include "audiobook.h"
 #include "tree.h"
 #include "bookmark.h"
 #include "system.h"
@@ -311,14 +312,15 @@ static bool add_bookmark(const char* bookmark_file_name,
     if (temp_bookmark_file < 0)
         return false; /* can't open the temp file */
 
-    if (most_recent && ((global_settings.usemrb == BOOKMARK_ONE_PER_PLAYLIST)
-                      || (global_settings.usemrb == BOOKMARK_ONE_PER_TRACK)))
+    int usemrb_now = audiobook_usemrb();
+    if (most_recent && ((usemrb_now == BOOKMARK_ONE_PER_PLAYLIST)
+                      || (usemrb_now == BOOKMARK_ONE_PER_TRACK)))
     {
 
         if (bookmark_get_playlist_and_track_hash(bookmark, &pl_hash, &pl_track_hash))
         {
             comp_playlist = true;
-            comp_track = (global_settings.usemrb == BOOKMARK_ONE_PER_TRACK);
+            comp_track = (usemrb_now == BOOKMARK_ONE_PER_TRACK);
         }
     }
 
@@ -1256,7 +1258,7 @@ bool bookmark_autobookmark(bool prompt_ok)
     if (update)
         return write_bookmark(BMARK_CREATE_FILE | BMARK_CHECK_IGNORE);
 
-    switch (global_settings.autocreatebookmark)
+    switch (audiobook_autocreatebookmark())
     {
         case BOOKMARK_YES:
             return write_bookmark(BMARK_CREATE_FILE | BMARK_CHECK_IGNORE);
@@ -1288,7 +1290,7 @@ int bookmark_autoload(const char* file)
     char bm_filename[MAX_PATH];
     char* bookmark;
 
-    if(global_settings.autoloadbookmark == BOOKMARK_NO)
+    if(audiobook_autoloadbookmark() == BOOKMARK_NO)
         return BOOKMARK_DONT_RESUME;
 
     /*Checking to see if a bookmark file exists.*/

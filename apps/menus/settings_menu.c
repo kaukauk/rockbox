@@ -642,6 +642,44 @@ MAKE_MENU(bookmark_settings_menu, ID2P(LANG_BOOKMARK_SETTINGS), 0,
 /***********************************/
 
 /***********************************/
+/*    AUDIOBOOK MENU               */
+/* `audiobook_path` and `audiobook_extensions` are not exposed here: the
+ * core menu engine has no widget for editing a TEXT_SETTING, and exposing
+ * them via MENUITEM_SETTING crashes inside the skin renderer when the row
+ * tries to display its value.  Edit them via `config.cfg` for now:
+ *     audiobook path: /Audiobooks
+ *     audiobook extensions: m4b
+ */
+MENUITEM_SETTING(audiobook_mode,
+                 &global_settings.audiobook_mode, NULL);
+MENUITEM_SETTING(audiobook_skip_length,
+                 &global_settings.audiobook_skip_length, NULL);
+MENUITEM_SETTING(audiobook_pause_rewind,
+                 &global_settings.audiobook_pause_rewind, NULL);
+MENUITEM_SETTING(audiobook_autocreatebookmark,
+                 &global_settings.audiobook_autocreatebookmark, NULL);
+MENUITEM_SETTING(audiobook_autoloadbookmark,
+                 &global_settings.audiobook_autoloadbookmark, NULL);
+MENUITEM_SETTING(audiobook_usemrb,
+                 &global_settings.audiobook_usemrb, NULL);
+#ifdef HAVE_TAGCACHE
+MENUITEM_SETTING(audiobook_autoresume_enable,
+                 &global_settings.audiobook_autoresume_enable, NULL);
+#endif
+MAKE_MENU(audiobook_settings_menu, ID2P(LANG_AUDIOBOOK_SETTINGS), 0,
+          Icon_Bookmark,
+          &audiobook_mode,
+          &audiobook_skip_length, &audiobook_pause_rewind,
+          &audiobook_autocreatebookmark, &audiobook_autoloadbookmark,
+          &audiobook_usemrb
+#ifdef HAVE_TAGCACHE
+          , &audiobook_autoresume_enable
+#endif
+          );
+/*    AUDIOBOOK MENU               */
+/***********************************/
+
+/***********************************/
 /*    AUTORESUME MENU              */
 #ifdef HAVE_TAGCACHE
 
@@ -801,6 +839,7 @@ MAKE_MENU(settings_menu_item, ID2P(LANG_GENERAL_SETTINGS), 0,
           &display_menu, &system_menu,
           &startup_shutdown_menu,
           &bookmark_settings_menu,
+          &audiobook_settings_menu,
 #ifdef HAVE_TAGCACHE
           &autoresume_menu,
 #endif
