@@ -300,7 +300,19 @@ public class RockboxPCM extends AudioTrack
         */
 
         float fraction = 1 - (volume / -990.0f);
-        int streamvolume = (int)Math.ceil(maxstreamvolume * fraction);
+        int desiredstream = (int)Math.ceil(maxstreamvolume * fraction);
+
+        /* Y1 quirk: dropping the Android stream volume all the way to 0
+         * causes the system to background org.rockbox shortly after —
+         * focus is yanked, the framebuffer surface is destroyed, and
+         * input stops reaching us.  The user thinks Rockbox froze, but
+         * really Android put the activity to sleep.  Floor the stream
+         * volume at 1, and use the PCM stereo gain to take the rest of
+         * the way to silent — that keeps Android happy *and* the user
+         * still gets a real mute. */
+        boolean want_silence = (desiredstream < 1);
+        int streamvolume = want_silence ? 1 : desiredstream;
+
         int oldstreamvolume = audiomanager.getStreamVolume(streamtype);
         if (streamvolume != oldstreamvolume) {
             Logger.d("java:setStreamVolume("+streamvolume+")");
@@ -308,7 +320,12 @@ public class RockboxPCM extends AudioTrack
             audiomanager.setStreamVolume(streamtype, streamvolume, 0);
         }
 
-        if (streamvolume > 0) {
+        if (want_silence) {
+            /* Force the PCM output to zero — Android stream is at the
+             * floor but PCM gain is independent and reaches real
+             * silence here. */
+            setStereoVolume(0, 0);
+        } else {
             setStereoVolume(curleftvol, currightvol);
         }
     }

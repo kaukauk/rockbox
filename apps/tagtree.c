@@ -910,10 +910,60 @@ static bool parse_search(struct menu_entry *entry, const char *str)
     return true;
 }
 
+/* Force the "<Untagged>" placeholder (UNTAGGED in tagcache.h) to sit
+ * after every real entry regardless of the active locale's collation.
+ * tagcache emits it whenever the underlying tag value is empty, and on
+ * default ASCII collation '<' sorts before letters → the placeholder
+ * leaked to the top of every artist / album / genre list.  Returns
+ *    -1 if a sorts before b
+ *    +1 if a sorts after b
+ *     0 if neither is untagged (caller falls back to normal compare). */
+static bool is_untagged_name(const char *s)
+{
+    if (!s || !*s)
+        return false;
+
+    /* Be liberal about what counts as untagged so we catch every
+     * variant the tagcache / tagtree pair might emit:
+     *   - the raw "<Untagged>" sentinel (UNTAGGED macro)
+     *   - the localized "[Untagged]" via str(LANG_TAGNAVI_UNTAGGED)
+     *   - any other bracket style or translation a future locale picks
+     * In practice they all carry the substring "ntagged" case-
+     * insensitively and the first character is some kind of bracket
+     * ('<', '[', '(', or just a capital U).  A case-insensitive
+     * substring match on "ntagged" is both narrower than "matches
+     * anything containing 'tag'" and broad enough to cover all the
+     * variants we've seen. */
+    for (const char *p = s; *p; p++)
+    {
+        if ((p[0] == 'n' || p[0] == 'N') &&
+            (p[1] == 't' || p[1] == 'T') &&
+            (p[2] == 'a' || p[2] == 'A') &&
+            (p[3] == 'g' || p[3] == 'G') &&
+            (p[4] == 'g' || p[4] == 'G') &&
+            (p[5] == 'e' || p[5] == 'E') &&
+            (p[6] == 'd' || p[6] == 'D'))
+            return true;
+    }
+    return false;
+}
+
+static int compare_sink_untagged(const char *a, const char *b)
+{
+    bool a_untag = is_untagged_name(a);
+    bool b_untag = is_untagged_name(b);
+    if (a_untag && !b_untag) return  1;
+    if (!a_untag &&  b_untag) return -1;
+    return 0;
+}
+
 static int compare(const void *p1, const void *p2)
 {
     struct tagentry *e1 = (struct tagentry *)p1;
     struct tagentry *e2 = (struct tagentry *)p2;
+    int s = compare_sink_untagged(e1->name, e2->name);
+    if (s != 0)
+        return s;
     return qsort_fn(e1->name, e2->name, MAX_PATH);
 }
 
@@ -921,6 +971,13 @@ static int compare_with_albums(const void *p1, const void *p2)
 {
     struct tagentry *e1 = (struct tagentry *)p1;
     struct tagentry *e2 = (struct tagentry *)p2;
+    /* Sink untagged primarily by album name, then by entry name, so a
+     * track inside an album labelled "<Untagged>" still groups with
+     * its siblings rather than getting mid-list. */
+    int s = compare_sink_untagged(e1->album_name ? e1->album_name : "",
+                                  e2->album_name ? e2->album_name : "");
+    if (s != 0)
+        return s;
     int sort_album_res = qsort_fn(
         e1->album_name == NULL ? "" : e1->album_name,
         e2->album_name == NULL ? "" : e2->album_name, MAX_PATH);
@@ -929,6 +986,9 @@ static int compare_with_albums(const void *p1, const void *p2)
         /* If album name is different */
         return sort_album_res;
     }
+    s = compare_sink_untagged(e1->name, e2->name);
+    if (s != 0)
+        return s;
     return qsort_fn(e1->name, e2->name, MAX_PATH);
 }
 
