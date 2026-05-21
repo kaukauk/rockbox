@@ -1980,6 +1980,7 @@ target/hosted/android/lcd-android.c
 target/hosted/android/button-android.c
 #else
 target/hosted/android/button-innioasis-y1.c
+target/hosted/android/input-evdev-y1.c
 #endif
 #ifdef DEBUG
 target/hosted/android/debug-android.c
