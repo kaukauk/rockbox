@@ -70,6 +70,7 @@ enum {
 #endif
     GO_TO_OTHER_ITEMS,
     GO_TO_AUDIOBOOKS_BROWSE,
+    GO_TO_MUSIC,
 };
 
 /* Filter / hide-flow callback shared by every root-menu MENUITEM so the

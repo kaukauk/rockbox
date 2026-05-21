@@ -43,6 +43,9 @@
 #include "yesno.h"
 #include "splash.h"
 #include "button.h"
+#ifdef HAVE_TAGCACHE
+#include "menus/music_browser.h"
+#endif
 
 #ifdef HAVE_HOTSWAP
 #include "storage.h"
@@ -514,6 +517,9 @@ static const struct root_items items[] = {
 #endif
     [GO_TO_OTHER_ITEMS] = { show_other_items, NULL, NULL },
     [GO_TO_AUDIOBOOKS_BROWSE] = { browse_audiobooks, NULL, NULL },
+#ifdef HAVE_TAGCACHE
+    [GO_TO_MUSIC] = { music_browse, NULL, NULL },
+#endif
 
 };
 #define NUM_ITEMS (int)(sizeof(items)/sizeof(*items))
@@ -677,19 +683,55 @@ static struct menu_callback_with_desc other_items_desc = {
     other_items_callback, ID2P(LANG_OTHER_ITEMS), Icon_Submenu };
 
 /* "Audiobooks" root-menu handler — opens the file browser rooted at
- * the user's configured audiobook_path (defaults to "/Audiobooks").
- * Path resolution mirrors how the shortcuts code launches a folder:
- * fill out a browse_context and call rockbox_browse(). */
+ * the user's configured audiobook_path.
+ *
+ * On hosted-Android targets (the Y1) the actual mount is /sdcard, so a
+ * configured value of "/Audiobooks" resolves to a non-existent root
+ * and the file browser falls all the way back to "/sdcard" — showing
+ * Audiobooks, Music, Playlists, Themes, etc. side-by-side instead of
+ * diving into Audiobooks.  Normalise to /sdcard<path> on Android when
+ * the configured path doesn't already start with /sdcard. */
 static int browse_audiobooks(void *param)
 {
     (void)param;
-    const char *root = (const char *)global_settings.audiobook_path;
-    if (!root || !root[0])
-        root = "/Audiobooks";
+    static char resolved[MAX_PATH];
+
+    const char *configured = (const char *)global_settings.audiobook_path;
+    if (!configured || !configured[0])
+        configured = "/Audiobooks";
+
+#if (CONFIG_PLATFORM & PLATFORM_ANDROID)
+    /* If the user typed "/Audiobooks" (Rockbox-canonical), turn it into
+     * "/sdcard/Audiobooks" (Android-actual).  If they already typed the
+     * explicit /sdcard/... form, leave it alone. */
+    if (configured[0] == '/' &&
+        strncmp(configured, "/sdcard", 7) != 0)
+    {
+        snprintf(resolved, sizeof(resolved), "/sdcard%s", configured);
+    }
+    else
+#endif
+    {
+        strmemccpy(resolved, configured, sizeof(resolved));
+    }
+
+    /* rockbox_browse → set_current_file_ex treats its root argument as a
+     * FILE path: it strrchr()s the last '/' and uses the leading part
+     * as currdir, the trailing part as the highlighted filename.  Without
+     * a trailing slash, "/sdcard/Audiobooks" opens "/sdcard/" with the
+     * "Audiobooks" folder highlighted — the user then has to tap it
+     * again.  Append a slash so currdir IS the audiobook folder. */
+    size_t rlen = strlen(resolved);
+    if (rlen > 0 && rlen + 1 < sizeof(resolved) && resolved[rlen-1] != '/')
+    {
+        resolved[rlen]   = '/';
+        resolved[rlen+1] = '\0';
+    }
+
     struct browse_context browse = {
         .dirfilter = global_settings.dirfilter,
         .icon      = Icon_Bookmark,
-        .root      = root,
+        .root      = resolved,
     };
     return rockbox_browse(&browse);
 }
@@ -817,10 +859,11 @@ MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
                      item_callback, Icon_Playlist);
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      item_callback, Icon_System_menu);
-/* "Music" — convenience alias for the Database browser.  Returns the
- * same GO_TO_DBBROWSER so the existing handler does the work; the only
- * difference visible to the user is the label/icon on the root menu. */
-MENUITEM_RETURNVALUE(music_item, ID2P(LANG_MUSIC), GO_TO_DBBROWSER,
+/* "Music" — opens a stripped-down tagcache browser (artist → album →
+ * track) defined in apps/menus/music_browser.c.  Bypasses the stock
+ * tagtree menu so the noisy "<All tracks>"/"<Random>"/etc. entries
+ * don't show up. */
+MENUITEM_RETURNVALUE(music_item, ID2P(LANG_MUSIC), GO_TO_MUSIC,
                      item_callback, Icon_Audio);
 /* "Audiobooks" — opens the file browser rooted at the configured
  * audiobook path so chapters stay in folder order rather than being
