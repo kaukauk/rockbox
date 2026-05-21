@@ -53,6 +53,17 @@ __pycache__
 # android: eclipse stuff
 /android/.settings
 
+# android: out-of-tree build directory created by `mkdir build && cd build`
+# per android/y1/building.md.  Holds the configure-generated Makefile,
+# extracted NDK toolchain, object files, librockbox.so, the signed APK,
+# etc. — none of which belong in version control.
+/android/build/
+
+# common editor / IDE droppings
+/.vscode/
+/.idea/
+*.swp
+
 # buflib test code
 /firmware/test/buflib/test_main
 /firmware/test/buflib/test_main2
