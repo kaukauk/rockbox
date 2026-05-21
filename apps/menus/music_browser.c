@@ -23,6 +23,7 @@
 #include "audio.h"
 #include "settings.h"
 #include "root_menu.h"
+#include "misc.h"
 #include "music_browser.h"
 
 #define MUSIC_MAX_ENTRIES   1024
@@ -102,6 +103,10 @@ static bool populate(int tag,
     if (!tagcache_search(&tcs, tag))
         return false;
 
+    /* Reset dedup state — the uniqbuf is a hash table of "seeks we've
+     * already yielded this search"; reusing it across nested levels
+     * would dedup-skip legitimate entries on the inner level. */
+    memset(s_uniqbuf, 0, sizeof(s_uniqbuf));
     tagcache_search_set_uniqbuf(&tcs, s_uniqbuf, MUSIC_UNIQBUF_SIZE);
 
     if (filter_tag_1 >= 0)
@@ -249,6 +254,14 @@ int music_browse(void *param)
         return GO_TO_PREVIOUS;
     }
 
+    /* Register an activity so the rest of the framework (status bar,
+     * idle handling, autosoftlock) knows what's on screen.  Pair every
+     * exit path with a pop via the `done:` label below — leaking an
+     * activity push was causing the framework to keep rendering after
+     * input had stopped reaching us. */
+    push_current_activity(ACTIVITY_DATABASEBROWSER);
+    int rc = GO_TO_PREVIOUS;
+
     while (1) /* artist loop */
     {
         s_level = MB_LV_ARTIST;
@@ -256,11 +269,11 @@ int music_browse(void *param)
                       "[No Artist]", false))
         {
             splash(HZ * 2, ID2P(LANG_NOTHING_TO_RESUME));
-            return GO_TO_PREVIOUS;
+            rc = GO_TO_PREVIOUS; goto done;
         }
         int artist_idx = run_list(str(LANG_MUSIC));
-        if (artist_idx == -2) return GO_TO_WPS;        /* USB / menu */
-        if (artist_idx <  0) return GO_TO_PREVIOUS;
+        if (artist_idx == -2) { rc = GO_TO_WPS;      goto done; }
+        if (artist_idx <  0)  { rc = GO_TO_PREVIOUS; goto done; }
 
         char artist_name[MUSIC_MAX_NAME_LEN];
         int  artist_seek = s_entries[artist_idx].seek;
@@ -276,7 +289,7 @@ int music_browse(void *param)
                 break;
             }
             int album_idx = run_list(artist_name);
-            if (album_idx == -2) return GO_TO_WPS;
+            if (album_idx == -2) { rc = GO_TO_WPS; goto done; }
             if (album_idx <  0) break;
 
             char album_name[MUSIC_MAX_NAME_LEN];
@@ -295,13 +308,20 @@ int music_browse(void *param)
                     break;
                 }
                 int track_idx = run_list(album_name);
-                if (track_idx == -2) return GO_TO_WPS;
+                if (track_idx == -2) { rc = GO_TO_WPS; goto done; }
                 if (track_idx <  0) break;
 
                 if (play_album(track_idx))
-                    return GO_TO_WPS;
+                {
+                    rc = GO_TO_WPS;
+                    goto done;
+                }
                 /* else stay on the track list */
             }
         }
     }
+
+done:
+    pop_current_activity();
+    return rc;
 }
