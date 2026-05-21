@@ -17309,3 +17309,87 @@
     *: "Audiobook Mode"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_SKIP_LENGTH
+  desc: audiobook mode submenu - per-context skip length value
+  user: core
+  <source>
+    *: "Audiobook Skip Length"
+  </source>
+  <dest>
+    *: "Audiobook Skip Length"
+  </dest>
+  <voice>
+    *: "Audiobook Skip Length"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_PAUSE_REWIND
+  desc: audiobook mode submenu - per-context pause-rewind value
+  user: core
+  <source>
+    *: "Audiobook Rewind on Pause"
+  </source>
+  <dest>
+    *: "Audiobook Rewind on Pause"
+  </dest>
+  <voice>
+    *: "Audiobook Rewind on Pause"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_AUTOCREATE
+  desc: audiobook mode submenu - per-context bookmark-on-stop value
+  user: core
+  <source>
+    *: "Audiobook Bookmark on Stop"
+  </source>
+  <dest>
+    *: "Audiobook Bookmark on Stop"
+  </dest>
+  <voice>
+    *: "Audiobook Bookmark on Stop"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_AUTOLOAD
+  desc: audiobook mode submenu - per-context load-last-bookmark value
+  user: core
+  <source>
+    *: "Audiobook Load Last Bookmark"
+  </source>
+  <dest>
+    *: "Audiobook Load Last Bookmark"
+  </dest>
+  <voice>
+    *: "Audiobook Load Last Bookmark"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_RECENT_BOOKMARKS
+  desc: audiobook mode submenu - per-context maintain-recent-bookmarks value
+  user: core
+  <source>
+    *: "Audiobook Recent Bookmarks"
+  </source>
+  <dest>
+    *: "Audiobook Recent Bookmarks"
+  </dest>
+  <voice>
+    *: "Audiobook Recent Bookmarks"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_AUTORESUME
+  desc: audiobook mode submenu - per-context auto-resume value
+  user: core
+  <source>
+    *: "Audiobook Auto-Resume"
+  </source>
+  <dest>
+    *: "Audiobook Auto-Resume"
+  </dest>
+  <voice>
+    *: "Audiobook Auto-Resume"
+  </voice>
+</phrase>
