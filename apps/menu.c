@@ -106,7 +106,7 @@ static bool query_audio_status(int *old_audio_status)
     return redraw_list;
 }
 
-static int get_menu_selection(int selected_item, const struct menu_item_ex *menu)
+int get_menu_selection(int selected_item, const struct menu_item_ex *menu)
 {
     int type = (menu->flags&MENU_TYPE_MASK);
     if ((type == MT_MENU || type == MT_RETURN_ID)
@@ -464,6 +464,17 @@ int do_menu(const struct menu_item_ex *start_menu, int *start_selected,
             ret = MENU_SELECTED_EXIT; /* exit after return from selection */
         else if (new_action == ACTION_REDRAW)
             redraw_lists = true;
+        else if (new_action == ACTION_RELOAD_MENU)
+        {
+            /* Callback mutated the menu (e.g. show/hide items). Re-run
+             * REQUEST_MENUITEM for every submenu so current_subitems[]
+             * reflects the new visibility, then redraw. */
+            init_menu_lists(menu, &lists,
+                            gui_synclist_get_sel_pos(&lists),
+                            false, vps, buf, sizeof buf);
+            redraw_lists = true;
+            continue;
+        }
         else
             action = new_action;
 

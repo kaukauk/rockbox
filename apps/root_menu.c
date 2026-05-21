@@ -39,6 +39,10 @@
 #include "talk.h"
 #include "audio.h"
 #include "shortcuts.h"
+#include "action.h"
+#include "yesno.h"
+#include "splash.h"
+#include "button.h"
 
 #ifdef HAVE_HOTSWAP
 #include "storage.h"
@@ -478,6 +482,8 @@ extern struct menu_item_ex
 #ifdef INNIOASIS_Y1
 extern struct menu_item_ex fm_radio_app_item;
 #endif
+/* Defined further down — needed here so items[] can take its address. */
+static int show_other_items(void *param);
 static const struct root_items items[] = {
     [GO_TO_FILEBROWSER] =   { browser, (void*)GO_TO_FILEBROWSER, &file_menu},
 #ifdef HAVE_TAGCACHE
@@ -505,6 +511,7 @@ static const struct root_items items[] = {
 #ifdef INNIOASIS_Y1
     [GO_TO_FM_RADIO_APP] = { miscscrn, &fm_radio_app_item, NULL },
 #endif
+    [GO_TO_OTHER_ITEMS] = { show_other_items, NULL, NULL },
 
 };
 #define NUM_ITEMS (int)(sizeof(items)/sizeof(*items))
@@ -513,17 +520,252 @@ static int item_callback(int action,
                          const struct menu_item_ex *this_item,
                          struct gui_synclist *this_list);
 
+/* "Other Items" — root-menu entry that opens the hidden-items submenu.
+ * Declared up here so the helpers below can take its address. */
+MENUITEM_RETURNVALUE(other_items, ID2P(LANG_OTHER_ITEMS), GO_TO_OTHER_ITEMS,
+                     item_callback, Icon_Submenu);
+
+/* --------------------------------------------------------------------- */
+/* "Other Items" — user-managed hidden-items submenu                     */
+/*                                                                       */
+/* Storage: global_settings.main_menu_hidden, a comma-separated list of  */
+/* menu_table[] string keys (e.g. "database,radio,playlists").  Empty by */
+/* default → nothing hidden.                                             */
+/* --------------------------------------------------------------------- */
+
+static struct menu_table menu_table[]; /* fwd decl */
+
+/* Return true iff `key` appears in main_menu_hidden as a comma-delimited
+ * token. */
+static bool main_menu_is_hidden(const char *key)
+{
+    const char *list = (const char *)global_settings.main_menu_hidden;
+    if (!list || !list[0] || !key || !key[0])
+        return false;
+    size_t klen = strlen(key);
+    const char *p = list;
+    while ((p = strstr(p, key)) != NULL)
+    {
+        bool left_ok  = (p == list) || (p[-1] == ',');
+        bool right_ok = (p[klen] == '\0') || (p[klen] == ',');
+        if (left_ok && right_ok)
+            return true;
+        p++;
+    }
+    return false;
+}
+
+/* Append `key` to main_menu_hidden as a comma-delimited token (no-op
+ * if the key is already present or the buffer would overflow). */
+static void main_menu_add_hidden(const char *key)
+{
+    if (main_menu_is_hidden(key))
+        return;
+    char *list = (char *)global_settings.main_menu_hidden;
+    size_t cap = sizeof(global_settings.main_menu_hidden);
+    size_t cur = strlen(list);
+    size_t klen = strlen(key);
+    /* need: (cur ? cur + 1 : 0) for "<existing>," + klen + null */
+    size_t need = cur + (cur ? 1 : 0) + klen + 1;
+    if (need > cap)
+        return; /* drop silently — list is only 256 bytes, plenty for menus */
+    if (cur)
+        list[cur++] = ',';
+    memcpy(list + cur, key, klen + 1);
+    settings_save();
+}
+
+/* Remove `key` from main_menu_hidden (no-op if absent). */
+static void main_menu_remove_hidden(const char *key)
+{
+    char *list = (char *)global_settings.main_menu_hidden;
+    if (!list[0])
+        return;
+    size_t klen = strlen(key);
+    char *p = list;
+    while ((p = strstr(p, key)) != NULL)
+    {
+        bool left_ok  = (p == list) || (p[-1] == ',');
+        bool right_ok = (p[klen] == '\0') || (p[klen] == ',');
+        if (left_ok && right_ok)
+        {
+            /* Take the trailing comma with the key if present;
+             * otherwise (last token) take the leading comma instead. */
+            size_t total = strlen(list);
+            char *rm_start;
+            char *rm_end;
+            if (p[klen] == ',')
+            {
+                rm_start = p;
+                rm_end   = p + klen + 1;
+            }
+            else if (p > list && p[-1] == ',')
+            {
+                rm_start = p - 1;
+                rm_end   = p + klen;
+            }
+            else
+            {
+                /* only token in the list */
+                rm_start = p;
+                rm_end   = p + klen;
+            }
+            memmove(rm_start, rm_end, total - (rm_end - list) + 1);
+            settings_save();
+            return;
+        }
+        p++;
+    }
+}
+
+/* Lookup the menu_table[] key string for a given menu_item_ex pointer.
+ * NULL if not in menu_table (e.g. dynamically allocated items). */
+static const char *main_menu_key_for_item(const struct menu_item_ex *item);
+
+/* Pop "Move to Other Items?" Yes/No.  Returns true if user said Yes. */
+static bool confirm_hide_prompt(void)
+{
+    static const char *lines[]   = { ID2P(LANG_MAINMENU_HIDE_PROMPT) };
+    static const struct text_message message = { lines, 1 };
+    return gui_syncyesno_run(&message, NULL, NULL) == YESNO_YES;
+}
+
+static bool confirm_unhide_prompt(void)
+{
+    static const char *lines[]   = { ID2P(LANG_MAINMENU_UNHIDE_PROMPT) };
+    static const struct text_message message = { lines, 1 };
+    return gui_syncyesno_run(&message, NULL, NULL) == YESNO_YES;
+}
+
+/* True if `action` arrived via short-press BUTTON_LEFT specifically (and
+ * not via, say, BUTTON_PLAY|BUTTON_REPEAT, which on Y1 also produces
+ * ACTION_STD_CANCEL).  Used to gate the hide/unhide flow so a stray
+ * long-press play in the root menu doesn't dump items into "Other". */
+static bool action_came_from_left_button(void)
+{
+    int btn = 0;
+    get_action_statuscode(&btn);
+    /* strip modifier flags we don't care about */
+    btn &= ~(BUTTON_REL | BUTTON_REPEAT);
+    return btn == BUTTON_LEFT;
+}
+
+/* --- "Other Items" dynamic submenu ----------------------------------- */
+/*
+ * We can't reuse root_menu_ because its item_callback would hide the very
+ * items we want to show.  Build a fresh menu_item_ex over the same
+ * pointers from menu_table[] every time the user opens "Other Items".
+ */
+
+/* Flag flipped on while show_other_items() runs do_menu(), so the
+ * shared item_callback below knows NOT to filter out hidden items from
+ * the dynamic Other Items submenu — that's the one place they *should*
+ * be visible. */
+static bool g_showing_other_items = false;
+
+static struct menu_item_ex *other_items_array[16]; /* > MAX_MENU_ITEMS */
+static struct menu_item_ex  other_items_menu_;
+static int other_items_callback(int action,
+                                const struct menu_item_ex *this_item,
+                                struct gui_synclist *this_list);
+static struct menu_callback_with_desc other_items_desc = {
+    other_items_callback, ID2P(LANG_OTHER_ITEMS), Icon_Submenu };
+
+static int show_other_items(void *param)
+{
+    (void)param;
+    int count = 0;
+    extern int MAX_MENU_ITEMS_count(void); /* not used */
+    /* enumerate menu_table; pick out the hidden ones (and never
+     * "other_items" itself, even if somehow tagged as hidden) */
+    extern struct menu_table *root_menu_get_options(int *nb);
+    int nb = 0;
+    struct menu_table *table = root_menu_get_options(&nb);
+    for (int i = 0; i < nb && count < (int)ARRAYLEN(other_items_array); i++)
+    {
+        if (table[i].item == &other_items)
+            continue;
+        if (main_menu_is_hidden(table[i].string))
+            other_items_array[count++] = (struct menu_item_ex *)table[i].item;
+    }
+    if (count == 0)
+    {
+        splash(HZ, ID2P(LANG_BOOKMARK_LOAD_EMPTY)); /* reuse "empty" splash */
+        return GO_TO_PREVIOUS;
+    }
+
+    other_items_menu_.flags = MENU_HAS_DESC | MT_MENU | MENU_ITEM_COUNT(count);
+    other_items_menu_.submenus = (const struct menu_item_ex **)other_items_array;
+    other_items_menu_.callback_and_desc = &other_items_desc;
+
+    int selected = 0;
+    g_showing_other_items = true;
+    int ret = do_menu(&other_items_menu_, &selected, NULL, false);
+    g_showing_other_items = false;
+    /* do_menu returns either the value of the selected MT_RETURN_VALUE
+     * (a GO_TO_*) or MENU_SELECTED_EXIT / MENU_ATTACHED_USB.  Pass it
+     * back to root_menu's outer state machine. */
+    return ret;
+}
+
+static int other_items_callback(int action,
+                                const struct menu_item_ex *this_item,
+                                struct gui_synclist *this_list)
+{
+    if (action == ACTION_STD_CANCEL
+        && action_came_from_left_button() && this_list)
+    {
+        int sel = get_menu_selection(
+            gui_synclist_get_sel_pos(this_list), this_item);
+        const struct menu_item_ex *highlighted = NULL;
+        if (this_item->submenus
+            && sel >= 0
+            && sel < (int)MENU_GET_COUNT(this_item->flags))
+        {
+            highlighted = this_item->submenus[sel];
+        }
+        if (highlighted)
+        {
+            const char *key = main_menu_key_for_item(highlighted);
+            if (key && confirm_unhide_prompt())
+            {
+                main_menu_remove_hidden(key);
+                /* Bail to the outer show_other_items() so it can rebuild
+                 * the dynamic list — the item we just unhid needs to
+                 * disappear from this view. */
+                return ACTION_STD_CANCEL;
+            }
+            return ACTION_RELOAD_MENU;
+        }
+    }
+    return action;
+}
+
+/* --- forward-declared earlier; defined here so menu_table[] is in scope */
+static const char *main_menu_key_for_item(const struct menu_item_ex *item)
+{
+    int nb = 0;
+    struct menu_table *table = root_menu_get_options(&nb);
+    for (int i = 0; i < nb; i++)
+        if (table[i].item == item)
+            return table[i].string;
+    return NULL;
+}
+
+/* All root-menu items use item_callback so the ACTION_REQUEST_MENUITEM
+ * filter (which only fires on the *item's own* callback in menu.c) can
+ * hide entries that the user has moved to "Other Items". */
 MENUITEM_RETURNVALUE(shortcut_menu, ID2P(LANG_SHORTCUTS), GO_TO_SHORTCUTMENU,
-                        NULL, Icon_Bookmark);
+                        item_callback, Icon_Bookmark);
 
 MENUITEM_RETURNVALUE(file_browser, ID2P(LANG_DIR_BROWSER), GO_TO_FILEBROWSER,
-                        NULL, Icon_file_view_menu);
+                        item_callback, Icon_file_view_menu);
 #ifdef HAVE_TAGCACHE
 MENUITEM_RETURNVALUE(db_browser, ID2P(LANG_TAGCACHE), GO_TO_DBBROWSER,
-                        NULL, Icon_Audio);
+                        item_callback, Icon_Audio);
 #endif
 MENUITEM_RETURNVALUE(rocks_browser, ID2P(LANG_PLUGINS), GO_TO_BROWSEPLUGINS,
-                        NULL, Icon_Plugin);
+                        item_callback, Icon_Plugin);
 
 static char *get_wps_item_name(int selected_item, void * data,
                                char *buffer, size_t buffer_len)
@@ -533,25 +775,25 @@ static char *get_wps_item_name(int selected_item, void * data,
         return ID2P(LANG_NOW_PLAYING);
     return ID2P(LANG_RESUME_PLAYBACK);
 }
-MENUITEM_RETURNVALUE_DYNTEXT(wps_item, GO_TO_WPS, NULL, get_wps_item_name,
+MENUITEM_RETURNVALUE_DYNTEXT(wps_item, GO_TO_WPS, item_callback, get_wps_item_name,
                                 NULL, NULL, Icon_Playback_menu);
 #ifdef HAVE_RECORDING
 MENUITEM_RETURNVALUE(rec, ID2P(LANG_RECORDING), GO_TO_RECSCREEN,
-                        NULL, Icon_Recording);
+                        item_callback, Icon_Recording);
 #endif
 #if CONFIG_TUNER
 MENUITEM_RETURNVALUE(fm, ID2P(LANG_FM_RADIO), GO_TO_FM,
                         item_callback, Icon_Radio_screen);
 #endif
 MENUITEM_RETURNVALUE(menu_, ID2P(LANG_SETTINGS), GO_TO_MAINMENU,
-                        NULL, Icon_Submenu_Entered);
+                        item_callback, Icon_Submenu_Entered);
 MENUITEM_RETURNVALUE(bookmarks, ID2P(LANG_BOOKMARK_MENU_RECENT_BOOKMARKS),
                         GO_TO_RECENTBMARKS,  item_callback,
                         Icon_Bookmark);
 MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
-                     NULL, Icon_Playlist);
+                     item_callback, Icon_Playlist);
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
-                     NULL, Icon_System_menu);
+                     item_callback, Icon_System_menu);
 
 struct menu_item_ex root_menu_;
 static struct menu_callback_with_desc root_menu_desc = {
@@ -579,6 +821,9 @@ static struct menu_table menu_table[] = {
     { "plugins", &rocks_browser },
     { "system_menu", &system_menu_ },
     { "shortcuts", &shortcut_menu },
+    /* "Other Items" is always the last entry and is never user-hideable —
+     * it's the escape hatch back to anything you've moved here. */
+    { "other_items", &other_items },
 };
 #define MAX_MENU_ITEMS (sizeof(menu_table) / sizeof(struct menu_table))
 static struct menu_item_ex *root_menu__[MAX_MENU_ITEMS];
@@ -630,6 +875,15 @@ void root_menu_load_from_cfg(void* setting, char *value)
     }
     if (!main_menu_added)
         root_menu__[menu_item_count++] = (struct menu_item_ex *)&menu_;
+    /* Force "Other Items" onto the end of every loaded order unless the
+     * user has explicitly listed it.  Without this, a saved `root menu
+     * order:` line from a pre-feature install leaves the user with no
+     * way to reach anything they later move to Other Items. */
+    bool other_added = false;
+    for (i = 0; i < menu_item_count; i++)
+        if (root_menu__[i] == &other_items) { other_added = true; break; }
+    if (!other_added && menu_item_count < MAX_MENU_ITEMS)
+        root_menu__[menu_item_count++] = (struct menu_item_ex *)&other_items;
     root_menu_.flags |= MENU_ITEM_COUNT(menu_item_count);
     *(bool*)setting = true;
 }
@@ -700,7 +954,56 @@ static int item_callback(int action,
                 if (global_settings.usemrb == 0)
                     return ACTION_EXIT_MENUITEM;
             }
+            /* Filter user-hidden items, but ONLY when rendering the
+             * root menu — inside the Other Items submenu these items
+             * are exactly the ones we want to show.  "other_items"
+             * itself is the escape hatch back to them and must never
+             * disappear regardless of what's in main_menu_hidden. */
+            if (!g_showing_other_items && this_item != &other_items)
+            {
+                const char *key = main_menu_key_for_item(this_item);
+                if (key && main_menu_is_hidden(key))
+                    return ACTION_EXIT_MENUITEM;
+            }
         break;
+        case ACTION_STD_CANCEL:
+            /* On the root menu, the rewind button (BUTTON_LEFT) is the
+             * only meaningful source of STD_CANCEL — there's nothing to
+             * back out to from the top of the menu stack.  Hijack it to
+             * stash the highlighted item in "Other Items".  Long-press
+             * Play also produces STD_CANCEL on the Y1, so we check the
+             * literal triggering button to avoid an accidental hide.
+             *
+             * For navigation actions menu.c passes the *parent* menu as
+             * this_item (not the highlighted child), so we have to fish
+             * the highlighted submenu out of the synclist ourselves. */
+            if (action_came_from_left_button() && this_list)
+            {
+                int sel = get_menu_selection(
+                    gui_synclist_get_sel_pos(this_list), this_item);
+                const struct menu_item_ex *highlighted = NULL;
+                if (this_item->submenus
+                    && sel >= 0
+                    && sel < (int)MENU_GET_COUNT(this_item->flags))
+                {
+                    highlighted = this_item->submenus[sel];
+                }
+                if (highlighted && highlighted != &other_items)
+                {
+                    const char *key = main_menu_key_for_item(highlighted);
+                    if (key && !main_menu_is_hidden(key)
+                        && confirm_hide_prompt())
+                    {
+                        main_menu_add_hidden(key);
+                        /* RELOAD_MENU re-runs init_menu_lists so the
+                         * REQUEST_MENUITEM filter sweeps out the now-
+                         * hidden entry. */
+                        return ACTION_RELOAD_MENU;
+                    }
+                    return ACTION_REDRAW;
+                }
+            }
+            break;
     }
     return action;
 }

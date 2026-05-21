@@ -2470,6 +2470,7 @@ const struct settings_list settings[] = {
                   NULL, "root menu order",
                   root_menu_load_from_cfg, root_menu_write_to_cfg,
                   root_menu_is_changed, root_menu_set_default),
+    TEXT_SETTING(0, main_menu_hidden, "main menu hidden", "", NULL, NULL),
 
 #if defined(DX50) || defined(DX90)
     CHOICE_SETTING(0,

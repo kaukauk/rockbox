@@ -901,6 +901,10 @@ struct user_settings
     /* Has the root been customized from the .cfg file? false = no, true = loaded from cfg */
     bool keep_directory;  /* this saves the last path visited in the file browser */
     bool root_menu_customized;
+    /* Comma-separated list of menu_table keys the user has moved to the
+     * "Other Items" submenu from the root menu (e.g. "database,radio").
+     * Empty by default → nothing hidden. */
+    unsigned char main_menu_hidden[256];
 #ifdef HAVE_QUICKSCREEN
     bool shortcuts_replaces_qs;
 #endif
