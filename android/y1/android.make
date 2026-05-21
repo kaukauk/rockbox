@@ -43,6 +43,13 @@ else
     ZIPALIGN=$(ANDROID_SDK_PATH)/build-tools/$(BUILD_TOOLS_VERSION)/zipalign
 endif
 KEYSTORE=$(HOME)/.android/debug.keystore
+# Platform key: the AOSP test key kept in the Y1 port tree.  The
+# released rockbox-y1 system apps are signed with this same key, so
+# our locally-built APK matches the on-device cert hash — `adb install
+# -r` and `/system/app` replacement both work without sig conflicts.
+PLATFORM_PK8=$(ANDROID_DIR)/platform.pk8
+PLATFORM_X509=$(ANDROID_DIR)/platform.x509.pem
+APKSIGNER=$(ANDROID_SDK_PATH)/build-tools/34.0.0/apksigner
 ADB=$(ANDROID_SDK_PATH)/platform-tools/adb
 BUILDAPK=$(ANDROID_DIR)/buildapk.sh
 
@@ -148,16 +155,17 @@ $(KEYSTORE):
 		-dname "CN=Android Debug,O=Android,C=US"
 
 ifneq ($(NODEPS),,)
-$(APK): $(TEMP_APK) $(KEYSTORE)
+$(APK): $(TEMP_APK) $(PLATFORM_PK8) $(PLATFORM_X509)
 else
-$(APK): $(TEMP_APK) $(BUILDDIR)/rockbox.zip $(KEYSTORE)
+$(APK): $(TEMP_APK) $(BUILDDIR)/rockbox.zip $(PLATFORM_PK8) $(PLATFORM_X509)
 endif
 	$(SILENT)rm -f $@
-	$(call PRINTS,SIGN $(subst $(BUILDDIR)/,,$@))jarsigner \
-		-keystore "$(KEYSTORE)" -storepass "android" -keypass "android" \
-		-signedjar $(TEMP_APK2) $(TEMP_APK) "androiddebugkey" \
-		-sigalg SHA1withRSA -digestalg SHA1
-	$(SILENT)$(ZIPALIGN) -v 4 $(TEMP_APK2) $@ > /dev/null
+	$(SILENT)$(ZIPALIGN) -f 4 $(TEMP_APK) $(TEMP_APK2) > /dev/null
+	$(call PRINTS,SIGN $(subst $(BUILDDIR)/,,$@))$(APKSIGNER) sign \
+		--key "$(PLATFORM_PK8)" --cert "$(PLATFORM_X509)" \
+		--v1-signing-enabled true --v2-signing-enabled false \
+		--min-sdk-version 17 \
+		--out $@ $(TEMP_APK2)
 
 $(DIRS):
 	$(SILENT)mkdir -p $@
