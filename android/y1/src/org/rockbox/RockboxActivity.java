@@ -169,18 +169,24 @@ public class RockboxActivity extends Activity
             if (foregroundPackage.equals("com.mediatek.FMRadio")){
                 MediaButtonReceiver.setDpadMode(1); // fm specific remapping
             } else if (isSystemPackage(foregroundPackage)) {
-                /* Focus got stolen by a transient system overlay — a USB
-                 * dialog, the volume HUD, the lock screen, a toast on
-                 * top, etc.  Keep dpad_mode at 0 so the user's button
-                 * presses still flow straight into Rockbox's C code via
-                 * MediaButtonReceiver's direct buttonHandler path,
-                 * rather than getting injected at the overlay where
-                 * they do nothing visible — i.e. the "Rockbox froze"
-                 * symptom the user was hitting. */
+                /* Focus got stolen by a transient system overlay — the
+                 * USB storage mode dialog when a cable is plugged in,
+                 * the volume HUD, the lock screen, a toast.  The Y1's
+                 * scroll wheel events go to whatever window is focused,
+                 * and those overlays don't react to wheel input, so the
+                 * user perceives Rockbox as frozen.  Pull our activity
+                 * back to the top to reclaim focus.  Keep dpad_mode at
+                 * 0 either way so any presses landing through media-
+                 * button broadcasts during the swap still reach our C
+                 * code. */
                 MediaButtonReceiver.setDpadMode(0);
                 Log.d("RockboxActivity",
                       "system overlay (" + foregroundPackage
-                      + ") stole focus, keeping dpad_mode=0");
+                      + ") stole focus — reclaiming");
+                Intent reclaim = new Intent(this, RockboxActivity.class);
+                reclaim.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                               | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(reclaim);
             } else {
                 MediaButtonReceiver.setDpadMode(2); // other menus
             }

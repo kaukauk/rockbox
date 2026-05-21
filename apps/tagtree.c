@@ -1956,6 +1956,51 @@ entry_skip_formatter:
         );
     }
 
+    /* Unconditional post-pass: partition <Untagged> rows to the tail
+     * of the array regardless of whether qsort just ran.  Plain
+     * sort-true views need this because the comparator can't reliably
+     * push untagged to a stable bottom under an inverse sort; sort-
+     * false views need this because tagcache returns untagged
+     * alphabetically first ('[' sorts before letters).  Either way,
+     * physically moving the row to the end of the entries array
+     * guarantees it renders at the bottom of the on-screen list. */
+    {
+        struct tagentry *entries = get_entries(c);
+        int real_count = current_entry_count - c->special_entry_count;
+        if (real_count > 1)
+        {
+            struct tagentry *base = entries + c->special_entry_count;
+            struct tagentry saved_untag;
+            bool have_untag = false;
+            int write = 0;
+            for (int read = 0; read < real_count; read++)
+            {
+                if (is_untagged_name(base[read].name))
+                {
+                    /* Stash the first untagged row we see; uniqbuf
+                     * should have collapsed multiples down to one but
+                     * be defensive. */
+                    if (!have_untag)
+                    {
+                        saved_untag = base[read];
+                        have_untag = true;
+                    }
+                }
+                else
+                {
+                    if (write != read)
+                        base[write] = base[read];
+                    write++;
+                }
+            }
+            if (have_untag && write < real_count)
+            {
+                base[write] = saved_untag;
+                current_entry_count = c->special_entry_count + write + 1;
+            }
+        }
+    }
+
     if (!init)
     {
         tagcache_search_finish(&tcs);
