@@ -111,6 +111,11 @@ static const struct button_mapping button_context_settings[]  = {
 
 static const struct button_mapping button_context_bmark[]  = {
     { ACTION_BMS_DELETE,          BUTTON_MENU|BUTTON_REPEAT,       BUTTON_MENU },
+    /* Play/Pause is otherwise unused in the bookmark list (no-op in
+     * the inherited CONTEXT_LIST chain), so reclaim it for delete —
+     * select_bookmark() still gates the actual delete behind a
+     * confirm_delete_yesno() prompt, so an accidental tap is recoverable. */
+    { ACTION_BMS_DELETE,          BUTTON_PLAY|BUTTON_REL,          BUTTON_PLAY },
     LAST_ITEM_IN_LIST__NEXTLIST(CONTEXT_LIST),
 }; /* button_context_bmark */
 
