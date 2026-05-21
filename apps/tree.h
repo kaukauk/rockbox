@@ -72,6 +72,10 @@ struct browse_context {
     const char *selected;       /* name of selected file in the root */
     char *buf;                  /* buffer to store selected file */
     size_t bufsize;             /* size of the buffer */
+#ifdef HAVE_TAGCACHE
+    int initial_descend;        /* id3db: 1-based menu index to auto-enter on
+                                   first load (0 = no auto-descend) */
+#endif
 };
 
 /* browser context for file or db */

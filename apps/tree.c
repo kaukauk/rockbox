@@ -1160,6 +1160,22 @@ int rockbox_browse(struct browse_context *browse)
                 tc.dirfilter = &global_settings.dirfilter;
             tc.browse = browse;
             set_current_file(browse->root);
+#ifdef HAVE_TAGCACHE
+            if (dirfilter == SHOW_ID3DB && browse->initial_descend > 0)
+            {
+                /* Pre-load the database root menu and auto-enter the
+                 * requested entry, so the user lands directly inside a
+                 * specific menu (e.g. "Artist") instead of the root. */
+                tc.currtable = 0;
+                tc.currextra = 0;
+                tc.dirlevel = 0;
+                tc.selected_item = 0;
+                tagtree_load(&tc);
+                tc.selected_item = browse->initial_descend;
+                tagtree_enter(&tc, false);
+                reload_dir = true;
+            }
+#endif
             if (browse->flags&BROWSE_RUNFILE)
                 ret_val = ft_enter(&tc);
             else
