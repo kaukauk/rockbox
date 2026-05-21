@@ -22,13 +22,24 @@
 /* True iff audiobook overrides should apply to the current track right now. */
 bool audiobook_is_active(void);
 
-/* Resolved values: returns the audiobook field if audiobook_is_active(),
- * otherwise the corresponding regular global_settings field. */
+/* True iff the given file path matches the audiobook patterns. Use this
+ * variant when you are deciding on behavior for a track that is *about to
+ * load* — at that moment audio_current_track() still points at the
+ * outgoing track, so audiobook_is_active() would test the wrong thing. */
+bool audiobook_path_matches(const char *path);
+
+/* Resolved values keyed off audiobook_is_active() — for code that reacts
+ * to the currently-playing track (skip, pause-rewind, autobookmark on
+ * stop). */
 int  audiobook_skip_length(void);          /* seconds */
 int  audiobook_pause_rewind(void);         /* seconds */
 int  audiobook_autocreatebookmark(void);   /* BOOKMARK_NO/YES/ASK/... */
-int  audiobook_autoloadbookmark(void);     /* BOOKMARK_NO/YES/ASK */
 int  audiobook_usemrb(void);               /* BOOKMARK_NO/YES/ONE_PER_* */
-bool audiobook_autoresume_enable(void);
+
+/* Resolved values keyed off a caller-supplied path — for code that
+ * applies the setting to an *incoming* track or playlist (autoload on
+ * playlist start, autoresume on track load). */
+int  audiobook_autoloadbookmark_for(const char *path);
+bool audiobook_autoresume_enable_for(const char *path);
 
 #endif /* __AUDIOBOOK_H__ */

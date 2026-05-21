@@ -1290,7 +1290,7 @@ int bookmark_autoload(const char* file)
     char bm_filename[MAX_PATH];
     char* bookmark;
 
-    if(audiobook_autoloadbookmark() == BOOKMARK_NO)
+    if(audiobook_autoloadbookmark_for(file) == BOOKMARK_NO)
         return BOOKMARK_DONT_RESUME;
 
     /*Checking to see if a bookmark file exists.*/

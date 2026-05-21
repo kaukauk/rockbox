@@ -1765,7 +1765,7 @@ static bool audio_start_codec(bool auto_skip)
     }
 
     #ifdef HAVE_TAGCACHE
-    bool autoresume_enable = !cur_id3->skip_resume_adjustments && audiobook_autoresume_enable();
+    bool autoresume_enable = !cur_id3->skip_resume_adjustments && audiobook_autoresume_enable_for(cur_id3->path);
 
     if (autoresume_enable && !(cur_id3->elapsed || cur_id3->offset))
     {
