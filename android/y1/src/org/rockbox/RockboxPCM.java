@@ -311,17 +311,35 @@ public class RockboxPCM extends AudioTrack
         if (volume < -990) volume = -990;
         if (volume > 0)    volume = 0;
 
-        /* Curve: 10^(v/400) with a linear fade-to-zero over the
-         * bottom 10% so true silence is reachable. */
+        /* Two-zone curve.  The dial maps the rockbox volume range
+         * [-990, 0] cB to a position t ∈ [0, 1].
+         *
+         *   t ∈ [0, 0.20]  — anteroom.  Linear-in-amplitude fade from
+         *                    true silence up to the audibility floor.
+         *                    Most of this zone is below the device's
+         *                    audible threshold, giving the bottom of
+         *                    the dial a long quiet tail.
+         *
+         *   t ∈ [0.20, 1]  — listening band.  Linear-in-dB ramp from
+         *                    the floor (~-30 dB) up to 0 dB at the
+         *                    very top.  Each press changes the gain
+         *                    by an equal number of dB, so the ramp
+         *                    feels perceptually even / linear.
+         *
+         * Total audible range: 30 dB spread over 80% of the dial. */
+        final float TOTAL_DB    = 40.0f;
+        final float BREAKPOINT  = 0.20f;
+        final float FLOOR_GAIN  = (float)Math.pow(10.0, -TOTAL_DB / 20.0);
+        float t = (volume + 990) / 990.0f;
         float gain;
         if (volume <= -990) {
             gain = 0f;
-        } else if (volume <= -900) {
-            float floor_gain = (float)Math.pow(10.0, -900.0 / 400.0);
-            float t = (volume + 990) / 90.0f;  /* 0 at -990, 1 at -900 */
-            gain = floor_gain * t;
+        } else if (t <= BREAKPOINT) {
+            gain = FLOOR_GAIN * (t / BREAKPOINT);
         } else {
-            gain = (float)Math.pow(10.0, volume / 400.0);
+            float band_t = (t - BREAKPOINT) / (1.0f - BREAKPOINT);
+            float dB     = -TOTAL_DB + band_t * TOTAL_DB;
+            gain         = (float)Math.pow(10.0, dB / 20.0);
         }
 
         int   idx;
