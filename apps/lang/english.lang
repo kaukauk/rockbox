@@ -17435,3 +17435,31 @@
     *: "Move to Main Menu?"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_MUSIC
+  desc: root menu — convenience alias to the Database browser, labelled for the Y1's audiobook/music split
+  user: core
+  <source>
+    *: "Music"
+  </source>
+  <dest>
+    *: "Music"
+  </dest>
+  <voice>
+    *: "Music"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOKS_MENU
+  desc: root menu — opens the file browser rooted at the audiobook path setting
+  user: core
+  <source>
+    *: "Audiobooks"
+  </source>
+  <dest>
+    *: "Audiobooks"
+  </dest>
+  <voice>
+    *: "Audiobooks"
+  </voice>
+</phrase>
