@@ -42,9 +42,11 @@ import org.rockbox.Helper.Connectivity;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.IBinder;
@@ -128,9 +130,32 @@ public class RockboxService extends Service
         mFgRunner = new RunForegroundManager(this);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Wakelock");
 
+        /* Track the Android screen state and forward it to the native
+         * evdev reader.  The reader only delivers playback-control key
+         * events into Rockbox while the screen is off AND audio is
+         * playing — see firmware/target/hosted/android/input-evdev-y1.c. */
+        IntentFilter screenFilter = new IntentFilter();
+        screenFilter.addAction(Intent.ACTION_SCREEN_ON);
+        screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(mScreenStateReceiver, screenFilter);
+        /* Seed the initial state — we may have come up with screen already off. */
+        try { notifyScreenState(pm.isScreenOn()); } catch (Throwable t) { /* native not yet loaded */ }
+
         loadConfig();
         Connectivity.setContext(this);
     }
+
+    private final BroadcastReceiver mScreenStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (Intent.ACTION_SCREEN_ON.equals(intent.getAction()))
+                notifyScreenState(true);
+            else if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction()))
+                notifyScreenState(false);
+        }
+    };
+
+    public static native void notifyScreenState(boolean isOn);
 
     public static RockboxService getInstance()
     {

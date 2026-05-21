@@ -126,17 +126,21 @@ public class RockboxActivity extends Activity
     }
     
     /* this is also called when the backlight goes off,
-     * which is nice 
+     * which is nice
      */
     @Override
-    protected void onPause() 
+    protected void onPause()
     {
         super.onPause();
         /* this will cause the framebuffer's Surface to be destroyed, enabling
          * us to disable drawing */
         setVisible(false);
-        /* enable key lock */
-        keyLock(true);
+        /* Do NOT enable the softlock here.  The screen turning off must
+         * not silently disable the playback controls — the direct evdev
+         * reader in firmware/target/hosted/android/input-evdev-y1.c
+         * delivers rewind/FF/pause/scroll into the button queue while
+         * the screen is off + audio is playing, and a softlock would
+         * filter every action out in do_softlock(). */
     }
     
     @Override

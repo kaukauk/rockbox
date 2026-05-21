@@ -278,9 +278,7 @@ Java_org_rockbox_RockboxFramebuffer_forceFullRedraw(JNIEnv* env, jobject thiz)
 int button_read_device(int *data)
 {
     (void)data;
-    int btn = last_btns | pending_buttons;
-
-    return btn;
+    return last_btns | pending_buttons;
 }
 #else
 /*
@@ -362,6 +360,11 @@ void button_init_device(void)
                             constructor,
                             RockboxService_instance);
     }
+    /* Start the direct evdev reader so the playback controls work
+     * while the screen is off + audio is playing. */
+    extern void input_evdev_init(void);
+    input_evdev_init();
+
     /* when reaching this point, rockbox can be considered ready because the
      * input system (button.c) is initialized. This implies the kernel and threading
      * is up and running */
