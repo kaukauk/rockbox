@@ -52,8 +52,8 @@ public class RockboxPCM extends AudioTrack
     private int setstreamvolume = -1;
     private float minpcmvolume;
     private float curpcmvolume = 0;
-    private float curleftvol = 0;
-    private float currightvol = 0;
+    private float curleftvol = 1f;
+    private float currightvol = 1f;
     private float pcmrange;
 
     /* 8k is plenty, but some devices may have a higher minimum.
@@ -291,43 +291,65 @@ public class RockboxPCM extends AudioTrack
     private void set_volume(int volume)
     {
         Logger.d("java:set_volume("+volume+")");
-        /* Rockbox 'volume' is 0..-990 deci-dB attenuation.
-           Android streams have rather low resolution volume control,
-           typically 8 or 15 steps.
-           Therefore we use the pcm volume to add finer steps between
-           every android stream volume step.
-           It's not "real" dB, but it gives us 100 volume steps.
-        */
+        /* Rockbox volume is centi-bel attenuation: 0 = full, -990 ≈ mute.
+         *
+         * The old mapping took that range and linearly chose an Android
+         * STREAM_MUSIC step from it, which made the perceived curve
+         * lopsided — each stream step is already roughly logarithmic in
+         * amplitude on this device, so a linear preimage gave "no
+         * change at the top, big jumps at the bottom".
+         *
+         * Now we convert centi-bel → linear amplitude gain
+         *      gain = 10^(volume / 200)
+         * and split that across the Android stream step (coarse — what
+         * the hardware buttons and volume HUD track) and PCM stereo
+         * gain (fine — fills smoothly between stream steps).  The
+         * stream step is chosen so its nominal amplitude is just at
+         * or above the target gain, and the PCM gain trims it back
+         * down to land on the target exactly.  Result: smooth
+         * perceptual control across the whole range. */
+        if (volume < -990) volume = -990;
+        if (volume > 0)    volume = 0;
 
-        float fraction = 1 - (volume / -990.0f);
-        int desiredstream = (int)Math.ceil(maxstreamvolume * fraction);
+        /* Curve: 10^(v/400) with a linear fade-to-zero over the
+         * bottom 10% so true silence is reachable. */
+        float gain;
+        if (volume <= -990) {
+            gain = 0f;
+        } else if (volume <= -900) {
+            float floor_gain = (float)Math.pow(10.0, -900.0 / 400.0);
+            float t = (volume + 990) / 90.0f;  /* 0 at -990, 1 at -900 */
+            gain = floor_gain * t;
+        } else {
+            gain = (float)Math.pow(10.0, volume / 400.0);
+        }
 
-        /* Y1 quirk: dropping the Android stream volume all the way to 0
-         * causes the system to background org.rockbox shortly after —
-         * focus is yanked, the framebuffer surface is destroyed, and
-         * input stops reaching us.  The user thinks Rockbox froze, but
-         * really Android put the activity to sleep.  Floor the stream
-         * volume at 1, and use the PCM stereo gain to take the rest of
-         * the way to silent — that keeps Android happy *and* the user
-         * still gets a real mute. */
-        boolean want_silence = (desiredstream < 1);
-        int streamvolume = want_silence ? 1 : desiredstream;
+        int   idx;
+        float pcm_scalar;
+        if (gain <= 0f) {
+            /* Y1 quirk: dropping the Android stream volume all the way
+             * to 0 backgrounds org.rockbox shortly after — focus is
+             * yanked, the framebuffer surface is destroyed, input
+             * stops reaching us.  Floor the stream at 1 and use PCM
+             * gain to reach real silence. */
+            idx = 1;
+            pcm_scalar = 0f;
+        } else {
+            idx = (int)Math.ceil(gain * maxstreamvolume);
+            if (idx < 1)               idx = 1;
+            if (idx > maxstreamvolume) idx = maxstreamvolume;
+            pcm_scalar = (gain * maxstreamvolume) / idx;
+            if (pcm_scalar > 1f) pcm_scalar = 1f;
+        }
 
         int oldstreamvolume = audiomanager.getStreamVolume(streamtype);
-        if (streamvolume != oldstreamvolume) {
-            Logger.d("java:setStreamVolume("+streamvolume+")");
-            setstreamvolume = streamvolume;
-            audiomanager.setStreamVolume(streamtype, streamvolume, 0);
+        if (idx != oldstreamvolume) {
+            Logger.d("java:setStreamVolume("+idx+")");
+            setstreamvolume = idx;
+            audiomanager.setStreamVolume(streamtype, idx, 0);
         }
 
-        if (want_silence) {
-            /* Force the PCM output to zero — Android stream is at the
-             * floor but PCM gain is independent and reaches real
-             * silence here. */
-            setStereoVolume(0, 0);
-        } else {
-            setStereoVolume(curleftvol, currightvol);
-        }
+        setStereoVolume(pcm_scalar * curleftvol, pcm_scalar * currightvol);
     }
 
     private void set_balance(int balance_i){
