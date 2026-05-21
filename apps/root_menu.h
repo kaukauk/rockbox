@@ -70,6 +70,16 @@ enum {
 #endif
     GO_TO_OTHER_ITEMS,
 };
+
+/* Filter / hide-flow callback shared by every root-menu MENUITEM so the
+ * "Other Items" feature can hide them.  Plain prototype rather than an
+ * extern struct because individual MENUITEM_* expansions live in
+ * different .c files. */
+struct menu_item_ex;
+struct gui_synclist;
+int item_callback(int action,
+                  const struct menu_item_ex *this_item,
+                  struct gui_synclist *this_list);
 #ifndef PLUGIN
 extern struct menu_item_ex root_menu_;
 

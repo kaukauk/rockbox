@@ -516,9 +516,12 @@ static const struct root_items items[] = {
 };
 #define NUM_ITEMS (int)(sizeof(items)/sizeof(*items))
 
-static int item_callback(int action,
-                         const struct menu_item_ex *this_item,
-                         struct gui_synclist *this_list);
+/* Exposed via root_menu.h so apps/menus/fm_radio_app.c can wire its
+ * MENUITEM_FUNCTION to the same callback and participate in the
+ * hide/unhide flow. */
+int item_callback(int action,
+                  const struct menu_item_ex *this_item,
+                  struct gui_synclist *this_list);
 
 /* "Other Items" — root-menu entry that opens the hidden-items submenu.
  * Declared up here so the helpers below can take its address. */
@@ -931,9 +934,9 @@ bool root_menu_is_changed(void* setting, void* defaultval)
     return *(bool*)setting;
 }
 
-static int item_callback(int action,
-                         const struct menu_item_ex *this_item,
-                         struct gui_synclist *this_list)
+int item_callback(int action,
+                  const struct menu_item_ex *this_item,
+                  struct gui_synclist *this_list)
 {
     (void)this_list;
     switch (action)
