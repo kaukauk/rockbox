@@ -32,6 +32,7 @@
 #include "kernel.h"
 #include "filetypes.h"
 #include "settings.h"
+#include "audiobook.h"
 #include "skin_engine/skin_engine.h"
 #include "audio.h"
 #include "usb.h"
@@ -139,9 +140,10 @@ void wps_do_action(enum wps_do_action_type action, bool updatewps)
     {
         audio_pause();
 
-        if (global_settings.pause_rewind) {
+        int rewind = audiobook_pause_rewind();
+        if (rewind) {
             unsigned long elapsed = audio_current_track()->elapsed;
-            long newpos = elapsed - (global_settings.pause_rewind * 1000);
+            long newpos = elapsed - (rewind * 1000);
 
             audio_pre_ff_rewind();
             audio_ff_rewind(newpos > 0 ? newpos : 0);
@@ -432,7 +434,7 @@ static void play_hop(int direction)
 {
     struct wps_state *state = get_wps_state();
     struct cuesheet *cue = state->id3->cuesheet;
-    long step = global_settings.skip_length*1000;
+    long step = audiobook_skip_length()*1000;
     long elapsed = state->id3->elapsed;
     long remaining = state->id3->length - elapsed;
 

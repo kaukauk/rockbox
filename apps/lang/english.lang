@@ -17281,3 +17281,31 @@
     *: "Finished"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_SETTINGS
+  desc: settings menu — submenu containing audiobook-mode overrides
+  user: core
+  <source>
+    *: "Audiobook Settings"
+  </source>
+  <dest>
+    *: "Audiobook Settings"
+  </dest>
+  <voice>
+    *: "Audiobook Settings"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_AUDIOBOOK_MODE
+  desc: master toggle — when on, the audiobook settings are applied to tracks whose path or extension matches the audiobook patterns
+  user: core
+  <source>
+    *: "Audiobook Mode"
+  </source>
+  <dest>
+    *: "Audiobook Mode"
+  </dest>
+  <voice>
+    *: "Audiobook Mode"
+  </voice>
+</phrase>

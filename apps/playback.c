@@ -46,6 +46,7 @@
 #include "storage.h"
 #include "misc.h"
 #include "settings.h"
+#include "audiobook.h"
 #include "audiohw.h"
 #include "general.h"
 #include "iap-usb.h"
@@ -1764,7 +1765,7 @@ static bool audio_start_codec(bool auto_skip)
     }
 
     #ifdef HAVE_TAGCACHE
-    bool autoresume_enable = !cur_id3->skip_resume_adjustments && global_settings.autoresume_enable;
+    bool autoresume_enable = !cur_id3->skip_resume_adjustments && audiobook_autoresume_enable();
 
     if (autoresume_enable && !(cur_id3->elapsed || cur_id3->offset))
     {
