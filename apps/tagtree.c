@@ -1711,45 +1711,16 @@ static int retrieve_entries(struct tree_context *c, int offset, bool init)
     tree_lock_cache(c);
     struct tagentry *dptr = core_get_data(c->cache.entries_handle);
 
-    if (tag != tag_title && tag != tag_filename)
-    {
-        bool show_album_sorted = (tag == tag_album);
-        int show_album_sorted_offset = (show_album_sorted ? 1 : 0);
-        if (offset == 0 && show_album_sorted)
-        {
-            dptr->newtable = TABLE_ALLSUBENTRIES_SORTED_BY_ALBUMS;
-            dptr->name = ID2P(LANG_TAGNAVI_ALL_TRACKS_SORTED_BY_ALBUM);
-            dptr->extraseek = 0;
-            dptr->customaction = ONPLAY_NO_CUSTOMACTION;
-            dptr++;
-            current_entry_count++;
-            c->special_entry_count++;
-        }
-        if (offset <= (show_album_sorted_offset))
-        {
-            dptr->newtable = TABLE_ALLSUBENTRIES;
-            dptr->name = ID2P(LANG_TAGNAVI_ALL_TRACKS);
-            dptr->extraseek = 0;
-            dptr->customaction = ONPLAY_NO_CUSTOMACTION;
-            dptr++;
-            current_entry_count++;
-            c->special_entry_count++;
-        }
-        if (offset <= (1 + show_album_sorted_offset))
-        {
-            dptr->newtable = TABLE_NAVIBROWSE;
-            dptr->name = ID2P(LANG_TAGNAVI_RANDOM);
-            dptr->extraseek = -1;
-            dptr->customaction = ONPLAY_NO_CUSTOMACTION;
-            dptr++;
-            current_entry_count++;
-            c->special_entry_count++;
-        }
-
-        total_count += 2;
-        if (show_album_sorted)
-            total_count++;
-    }
+    /* Placeholder injection ("<All tracks>", "<Random>", and for
+     * album-tagged lists "<All tracks sorted by album>") used to live
+     * here, at offset 0, which surfaced them at the *top* of every
+     * artist/album/genre/etc. screen.  They now get appended below the
+     * real entries — see the end of this function.  We only record
+     * here that they're wanted, so the rest of the loop body sees
+     * them as nonexistent (sort/strip/etc. operate on real entries
+     * only). */
+    bool wants_specials       = (tag != tag_title && tag != tag_filename);
+    bool wants_albums_sorted  = wants_specials && (tag == tag_album);
 
     while (tagcache_get_next(&tcs, tcs_buf, tcs_bufsz))
     {
@@ -1974,6 +1945,46 @@ entry_skip_formatter:
         }
     }
 
+    /* Append the meta entries ("<All tracks (sorted by album)>",
+     * "<All tracks>", "<Random>") after the real, sorted-and-stripped
+     * results so they sit at the bottom of the screen rather than
+     * shoving themselves to the top of every artist/genre/album list.
+     * Only on the first paged window (offset 0); subsequent pages
+     * already have everything they need. */
+    if (wants_specials && offset == 0)
+    {
+        dptr = get_entries(c);
+        dptr += current_entry_count;
+
+        if (wants_albums_sorted)
+        {
+            dptr->newtable     = TABLE_ALLSUBENTRIES_SORTED_BY_ALBUMS;
+            dptr->name         = ID2P(LANG_TAGNAVI_ALL_TRACKS_SORTED_BY_ALBUM);
+            dptr->extraseek    = 0;
+            dptr->customaction = ONPLAY_NO_CUSTOMACTION;
+            dptr++;
+            current_entry_count++;
+            c->special_entry_count++;
+            total_count++;
+        }
+        dptr->newtable     = TABLE_ALLSUBENTRIES;
+        dptr->name         = ID2P(LANG_TAGNAVI_ALL_TRACKS);
+        dptr->extraseek    = 0;
+        dptr->customaction = ONPLAY_NO_CUSTOMACTION;
+        dptr++;
+        current_entry_count++;
+        c->special_entry_count++;
+        total_count++;
+
+        dptr->newtable     = TABLE_NAVIBROWSE;
+        dptr->name         = ID2P(LANG_TAGNAVI_RANDOM);
+        dptr->extraseek    = -1;
+        dptr->customaction = ONPLAY_NO_CUSTOMACTION;
+        current_entry_count++;
+        c->special_entry_count++;
+        total_count++;
+    }
+
     return total_count;
 
 }
@@ -2143,7 +2154,12 @@ int tagtree_enter(struct tree_context* c, bool is_visible)
         if(c->filesindir<=c->special_entry_count) /* Menu contains only special entries */
             return 0;
         srand(current_tick);
-        dptr = (tagtree_get_entry(c, c->special_entry_count+(rand() % (c->filesindir-c->special_entry_count))));
+        /* Real entries now live at [0, filesindir - special_entry_count)
+         * — the placeholder block ("<All tracks>", "<Random>" itself,
+         * "<All tracks sorted by album>") sits at the tail end of the
+         * list rather than the head, so just pick within that prefix
+         * range directly. */
+        dptr = (tagtree_get_entry(c, (rand() % (c->filesindir-c->special_entry_count))));
         seek = dptr->extraseek;
     }
     newextra = dptr->newtable;
