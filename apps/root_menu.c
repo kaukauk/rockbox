@@ -484,6 +484,7 @@ extern struct menu_item_ex fm_radio_app_item;
 #endif
 /* Defined further down — needed here so items[] can take its address. */
 static int show_other_items(void *param);
+static int browse_audiobooks(void *param);
 static const struct root_items items[] = {
     [GO_TO_FILEBROWSER] =   { browser, (void*)GO_TO_FILEBROWSER, &file_menu},
 #ifdef HAVE_TAGCACHE
@@ -512,6 +513,7 @@ static const struct root_items items[] = {
     [GO_TO_FM_RADIO_APP] = { miscscrn, &fm_radio_app_item, NULL },
 #endif
     [GO_TO_OTHER_ITEMS] = { show_other_items, NULL, NULL },
+    [GO_TO_AUDIOBOOKS_BROWSE] = { browse_audiobooks, NULL, NULL },
 
 };
 #define NUM_ITEMS (int)(sizeof(items)/sizeof(*items))
@@ -674,6 +676,24 @@ static int other_items_callback(int action,
 static struct menu_callback_with_desc other_items_desc = {
     other_items_callback, ID2P(LANG_OTHER_ITEMS), Icon_Submenu };
 
+/* "Audiobooks" root-menu handler — opens the file browser rooted at
+ * the user's configured audiobook_path (defaults to "/Audiobooks").
+ * Path resolution mirrors how the shortcuts code launches a folder:
+ * fill out a browse_context and call rockbox_browse(). */
+static int browse_audiobooks(void *param)
+{
+    (void)param;
+    const char *root = (const char *)global_settings.audiobook_path;
+    if (!root || !root[0])
+        root = "/Audiobooks";
+    struct browse_context browse = {
+        .dirfilter = global_settings.dirfilter,
+        .icon      = Icon_Bookmark,
+        .root      = root,
+    };
+    return rockbox_browse(&browse);
+}
+
 static int show_other_items(void *param)
 {
     (void)param;
@@ -797,6 +817,17 @@ MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
                      item_callback, Icon_Playlist);
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      item_callback, Icon_System_menu);
+/* "Music" — convenience alias for the Database browser.  Returns the
+ * same GO_TO_DBBROWSER so the existing handler does the work; the only
+ * difference visible to the user is the label/icon on the root menu. */
+MENUITEM_RETURNVALUE(music_item, ID2P(LANG_MUSIC), GO_TO_DBBROWSER,
+                     item_callback, Icon_Audio);
+/* "Audiobooks" — opens the file browser rooted at the configured
+ * audiobook path so chapters stay in folder order rather than being
+ * mangled into the DB's artist/album hierarchy. */
+MENUITEM_RETURNVALUE(audiobooks_item, ID2P(LANG_AUDIOBOOKS_MENU),
+                     GO_TO_AUDIOBOOKS_BROWSE,
+                     item_callback, Icon_Bookmark);
 
 struct menu_item_ex root_menu_;
 static struct menu_callback_with_desc root_menu_desc = {
@@ -824,6 +855,10 @@ static struct menu_table menu_table[] = {
     { "plugins", &rocks_browser },
     { "system_menu", &system_menu_ },
     { "shortcuts", &shortcut_menu },
+    /* Y1 quality-of-life shortcuts: Music → DB browser, Audiobooks →
+     * file browser at audiobook_path. */
+    { "music", &music_item },
+    { "audiobooks", &audiobooks_item },
     /* "Other Items" is always the last entry and is never user-hideable —
      * it's the escape hatch back to anything you've moved here. */
     { "other_items", &other_items },
@@ -878,15 +913,23 @@ void root_menu_load_from_cfg(void* setting, char *value)
     }
     if (!main_menu_added)
         root_menu__[menu_item_count++] = (struct menu_item_ex *)&menu_;
-    /* Force "Other Items" onto the end of every loaded order unless the
-     * user has explicitly listed it.  Without this, a saved `root menu
-     * order:` line from a pre-feature install leaves the user with no
-     * way to reach anything they later move to Other Items. */
-    bool other_added = false;
-    for (i = 0; i < menu_item_count; i++)
-        if (root_menu__[i] == &other_items) { other_added = true; break; }
-    if (!other_added && menu_item_count < MAX_MENU_ITEMS)
-        root_menu__[menu_item_count++] = (struct menu_item_ex *)&other_items;
+
+    /* Force-append entries that the user can't manage themselves yet
+     * (we added them after this user's `root menu order:` was first
+     * saved).  Without this, an existing config locks them out forever. */
+    const struct menu_item_ex *forced[] = {
+        &music_item,
+        &audiobooks_item,
+        &other_items,   /* must be last — see comment in menu_table[] */
+    };
+    for (size_t f = 0; f < sizeof(forced)/sizeof(forced[0]); f++)
+    {
+        bool already = false;
+        for (i = 0; i < menu_item_count; i++)
+            if (root_menu__[i] == forced[f]) { already = true; break; }
+        if (!already && menu_item_count < MAX_MENU_ITEMS)
+            root_menu__[menu_item_count++] = (struct menu_item_ex *)forced[f];
+    }
     root_menu_.flags |= MENU_ITEM_COUNT(menu_item_count);
     *(bool*)setting = true;
 }

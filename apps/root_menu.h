@@ -69,6 +69,7 @@ enum {
     GO_TO_FM_RADIO_APP,
 #endif
     GO_TO_OTHER_ITEMS,
+    GO_TO_AUDIOBOOKS_BROWSE,
 };
 
 /* Filter / hide-flow callback shared by every root-menu MENUITEM so the
