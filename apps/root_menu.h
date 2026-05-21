@@ -68,6 +68,7 @@ enum {
 #ifdef INNIOASIS_Y1
     GO_TO_FM_RADIO_APP,
 #endif
+    GO_TO_OTHER_ITEMS,
 };
 #ifndef PLUGIN
 extern struct menu_item_ex root_menu_;

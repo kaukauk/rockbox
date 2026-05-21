@@ -17393,3 +17393,45 @@
     *: "Audiobook Auto-Resume"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_OTHER_ITEMS
+  desc: root menu — submenu holding items the user has moved away from the main view
+  user: core
+  <source>
+    *: "Other Items"
+  </source>
+  <dest>
+    *: "Other Items"
+  </dest>
+  <voice>
+    *: "Other Items"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_MAINMENU_HIDE_PROMPT
+  desc: confirmation prompt shown when rewind is pressed on a main-menu item
+  user: core
+  <source>
+    *: "Move to Other Items?"
+  </source>
+  <dest>
+    *: "Move to Other Items?"
+  </dest>
+  <voice>
+    *: "Move to Other Items?"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_MAINMENU_UNHIDE_PROMPT
+  desc: confirmation prompt shown when rewind is pressed inside the Other Items submenu
+  user: core
+  <source>
+    *: "Move to Main Menu?"
+  </source>
+  <dest>
+    *: "Move to Main Menu?"
+  </dest>
+  <voice>
+    *: "Move to Main Menu?"
+  </voice>
+</phrase>

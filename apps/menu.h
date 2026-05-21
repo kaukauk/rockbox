@@ -137,6 +137,11 @@ void do_setting_screen(const struct settings_list *setting, const char * title,
 int do_menu(const struct menu_item_ex *menu, int *start_selected,
             struct viewport parent[NB_SCREENS], bool hide_theme);
 
+/* Map a synclist position (the index do_menu's list reports as
+ * selected) back to the underlying menu->submenus[] index, accounting
+ * for items hidden by ACTION_REQUEST_MENUITEM-driven filtering. */
+int get_menu_selection(int selected_item, const struct menu_item_ex *menu);
+
 /* In all the following macros the argument names are as follows:
     - name: The name for the variable (so it can be used in a MAKE_MENU()
     - str:  the string to display for this menu item. use ID2P() for LANG_* id's

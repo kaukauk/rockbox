@@ -239,6 +239,11 @@ enum {
     ACTION_EXIT_AFTER_THIS_MENUITEM, /* if a menu returns this the menu will exit
                                         once the subitem returns */
     ACTION_ENTER_MENUITEM,
+    ACTION_RELOAD_MENU,              /* if a menu_callback returns this,
+                                        do_menu() re-runs init_menu_lists
+                                        and redraws — used when the
+                                        callback mutated the underlying
+                                        menu (e.g. hid/unhid items). */
 
     /* id3db */
 
