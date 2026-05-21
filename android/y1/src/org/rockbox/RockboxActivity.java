@@ -168,10 +168,35 @@ public class RockboxActivity extends Activity
             String foregroundPackage = getForegroundPackageName(this);
             if (foregroundPackage.equals("com.mediatek.FMRadio")){
                 MediaButtonReceiver.setDpadMode(1); // fm specific remapping
+            } else if (isSystemPackage(foregroundPackage)) {
+                /* Focus got stolen by a transient system overlay — a USB
+                 * dialog, the volume HUD, the lock screen, a toast on
+                 * top, etc.  Keep dpad_mode at 0 so the user's button
+                 * presses still flow straight into Rockbox's C code via
+                 * MediaButtonReceiver's direct buttonHandler path,
+                 * rather than getting injected at the overlay where
+                 * they do nothing visible — i.e. the "Rockbox froze"
+                 * symptom the user was hitting. */
+                MediaButtonReceiver.setDpadMode(0);
+                Log.d("RockboxActivity",
+                      "system overlay (" + foregroundPackage
+                      + ") stole focus, keeping dpad_mode=0");
             } else {
                 MediaButtonReceiver.setDpadMode(2); // other menus
             }
         }
+    }
+
+    /* True for packages that we never want to treat as "the user
+     * actually switched to a different media app".  Catches the USB
+     * dialog (com.android.systemui), the launcher, the Android-internal
+     * permission/UI activities, and the catch-all "unknown" fallback. */
+    private boolean isSystemPackage(String pkg) {
+        if (pkg == null)
+            return true;
+        return pkg.startsWith("com.android.")
+            || pkg.startsWith("android")
+            || pkg.equals("unknown");
     }
 
     private String getForegroundPackageName(Context context) {
