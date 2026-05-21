@@ -64,19 +64,23 @@ static bool extension_in_list(const char *path, const char *list)
     return false;
 }
 
-bool audiobook_is_active(void)
+bool audiobook_path_matches(const char *path)
 {
     if (!global_settings.audiobook_mode)
         return false;
-
-    struct mp3entry *id3 = audio_current_track();
-    if (!id3 || !id3->path[0])
+    if (!path || !path[0])
         return false;
 
-    return path_contains_segment(id3->path,
+    return path_contains_segment(path,
                                  (const char*)global_settings.audiobook_path)
-        || extension_in_list(id3->path,
+        || extension_in_list(path,
                              (const char*)global_settings.audiobook_extensions);
+}
+
+bool audiobook_is_active(void)
+{
+    struct mp3entry *id3 = audio_current_track();
+    return id3 ? audiobook_path_matches(id3->path) : false;
 }
 
 /* --------------------------------------------------------------------- */
@@ -101,20 +105,22 @@ int audiobook_autocreatebookmark(void)
                                  : global_settings.autocreatebookmark;
 }
 
-int audiobook_autoloadbookmark(void)
-{
-    return audiobook_is_active() ? global_settings.audiobook_autoloadbookmark
-                                 : global_settings.autoloadbookmark;
-}
-
 int audiobook_usemrb(void)
 {
     return audiobook_is_active() ? global_settings.audiobook_usemrb
                                  : global_settings.usemrb;
 }
 
-bool audiobook_autoresume_enable(void)
+int audiobook_autoloadbookmark_for(const char *path)
 {
-    return audiobook_is_active() ? global_settings.audiobook_autoresume_enable
-                                 : global_settings.autoresume_enable;
+    return audiobook_path_matches(path)
+        ? global_settings.audiobook_autoloadbookmark
+        : global_settings.autoloadbookmark;
+}
+
+bool audiobook_autoresume_enable_for(const char *path)
+{
+    return audiobook_path_matches(path)
+        ? global_settings.audiobook_autoresume_enable
+        : global_settings.autoresume_enable;
 }
